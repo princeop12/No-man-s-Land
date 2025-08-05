@@ -362,7 +362,7 @@ function spawnFlyingEnemies() {
         flyingEnemies.push({
             x: x,
             y: y,
-            width: 26, // Increased by 30% from 20px
+            width: 26,
             height: 30,
             color: 'blue',
             hits: 0,
@@ -618,7 +618,7 @@ function gameLoop() {
     groundEnemies.forEach(enemy => {
         if (enemy.x >= cameraX && enemy.x <= cameraX + canvasWidth) {
             ctx.save();
-            if (enemy.facingLeft) {
+            if (!enemy.facingLeft) { // Flip when facing right (soldier.x > enemy.x)
                 ctx.scale(-1, 1);
                 ctx.translate(-enemy.x - enemy.width, 0);
                 ctx.translate(-enemy.width, 0);
