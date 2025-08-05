@@ -4,6 +4,8 @@ const backgroundCtx = backgroundCanvas.getContext('2d');
 const ctx = gameCanvas.getContext('2d');
 const gameContainer = document.getElementById('gameContainer');
 const loadingScreen = document.getElementById('loadingScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const finalScoreText = document.getElementById('finalScore');
 const shootBtn = document.getElementById('shootBtn');
 const analogThumb = document.querySelector('.analog-thumb');
 
@@ -26,19 +28,19 @@ backgroundImage.onerror = () => console.error('Failed to load background.png');
 
 const playerImage = new Image();
 playerImage.src = 'player.png';
-playerImage.onerror = () => console.error('Failed to load player.png');
+playerImage.onerror = () => { console.error('Failed to load player.png'); playerImage.error = true; };
 
 const duckImage = new Image();
 duckImage.src = 'duck.png';
-duckImage.onerror = () => console.error('Failed to load duck.png');
+duckImage.onerror = () => { console.error('Failed to load duck.png'); duckImage.error = true; };
 
 const enemyImage = new Image();
 enemyImage.src = 'enemy.png';
-enemyImage.onerror = () => console.error('Failed to load enemy.png');
+enemyImage.onerror = () => { console.error('Failed to load enemy.png'); enemyImage.error = true; };
 
 const droneImage = new Image();
 droneImage.src = 'drone.png';
-droneImage.onerror = () => console.error('Failed to load drone.png');
+droneImage.onerror = () => { console.error('Failed to load drone.png'); droneImage.error = true; };
 
 // Player soldier properties
 const soldier = {
@@ -51,9 +53,9 @@ const soldier = {
     velocityY: 0,
     isJumping: false,
     isDucking: false,
-    color: 'red', // Fallback
-    hits: 0,
-    maxHits: 50,
+    color: 'red',
+    damageTaken: 0,
+    maxHealth: 1000,
     facingLeft: false
 };
 
@@ -73,14 +75,19 @@ let gameOver = false;
 let gameStarted = false;
 let lastGroundEnemySpawnTime = 0;
 let lastFlyingEnemySpawnTime = 0;
+let groundEnemySpawnInterval = 5000;
+let flyingEnemySpawnInterval = 5000;
+let enemyShootInterval = 2000;
 let isMovingLeft = false;
 let isMovingRight = false;
 let isShooting = false;
 let shootDirection = { x: 0, y: 0 };
+let score = 0;
+let killCount = 0;
 
 // Game constants
 const gravity = 0.6;
-const maxBulletDistance = 200; // Increased for visibility
+const maxBulletDistance = 200;
 const shootInterval = 200;
 let lastShotTime = 0;
 
@@ -93,23 +100,17 @@ const leftBtn = document.getElementById('leftBtn');
 const rightBtn = document.getElementById('rightBtn');
 
 // Initialize button visibility
-startBtn.classList.add('active');
 jumpBtn.style.display = 'none';
 duckBtn.style.display = 'none';
 leftBtn.style.display = 'none';
 rightBtn.style.display = 'none';
 shootBtn.style.display = 'none';
 
-// Show loading screen for 3 seconds, then reveal game
-setTimeout(() => {
-    loadingScreen.style.display = 'none';
-    gameContainer.style.display = 'block';
-}, 3000);
-
 // Button event listeners
 startBtn.addEventListener('click', () => {
     gameStarted = true;
-    startBtn.classList.remove('active');
+    loadingScreen.style.display = 'none';
+    gameContainer.style.display = 'block';
     jumpBtn.style.display = 'block';
     duckBtn.style.display = 'block';
     leftBtn.style.display = 'block';
@@ -125,7 +126,7 @@ restartBtn.addEventListener('click', () => {
     soldier.velocityY = 0;
     soldier.isJumping = false;
     soldier.isDucking = false;
-    soldier.hits = 0;
+    soldier.damageTaken = 0;
     soldier.facingLeft = false;
     playerBullets = [];
     enemyBullets = [];
@@ -139,9 +140,14 @@ restartBtn.addEventListener('click', () => {
     shootDirection = { x: 0, y: 0 };
     lastGroundEnemySpawnTime = Date.now();
     lastFlyingEnemySpawnTime = Date.now();
+    groundEnemySpawnInterval = 5000;
+    flyingEnemySpawnInterval = 5000;
+    enemyShootInterval = 2000;
+    score = 0;
+    killCount = 0;
     cameraX = 0;
     analogThumb.style.transform = 'translate(0, 0)';
-    restartBtn.classList.remove('active');
+    gameOverScreen.style.display = 'none';
     jumpBtn.style.display = 'block';
     duckBtn.style.display = 'block';
     leftBtn.style.display = 'block';
@@ -255,7 +261,7 @@ function updateAnalogThumb(clientX, clientY) {
     analogThumb.style.transform = `translate(${dx}px, ${dy}px)`;
     shootDirection = { x: dx / maxDistance, y: dy / maxDistance };
     if (magnitude === 0) shootDirection = { x: 0, y: 0 };
-    soldier.facingLeft = shootDirection.x < 0; // Face left if shooting left
+    soldier.facingLeft = shootDirection.x < 0;
 }
 
 function fireBullet() {
@@ -264,7 +270,7 @@ function fireBullet() {
     if (currentTime - lastShotTime >= shootInterval) {
         const bulletSpeed = 10;
         playerBullets.push({
-            x: soldier.x + (soldier.facingLeft ? 0 : soldier.width), // Adjust bullet start
+            x: soldier.x + (soldier.facingLeft ? 0 : soldier.width),
             y: soldier.y + soldier.height / 2,
             width: 5,
             height: 2.5,
@@ -326,7 +332,7 @@ document.addEventListener('touchcancel', () => {
 // Spawn enemies
 function spawnGroundEnemies() {
     const currentTime = Date.now();
-    if (currentTime - lastGroundEnemySpawnTime >= 5000 && gameStarted && !gameOver) {
+    if (currentTime - lastGroundEnemySpawnTime >= groundEnemySpawnInterval && gameStarted && !gameOver) {
         for (let i = 0; i < 2; i++) {
             groundEnemies.push({
                 x: cameraX + canvasWidth + Math.random() * (worldWidth - cameraX - canvasWidth - 20),
@@ -337,7 +343,10 @@ function spawnGroundEnemies() {
                 hits: 0,
                 maxHits: 3,
                 lastShot: 0,
-                isFlying: false
+                isFlying: false,
+                facingLeft: false,
+                action: 'stand',
+                lastActionChange: currentTime
             });
         }
         lastGroundEnemySpawnTime = currentTime;
@@ -346,14 +355,14 @@ function spawnGroundEnemies() {
 
 function spawnFlyingEnemies() {
     const currentTime = Date.now();
-    if (currentTime - lastFlyingEnemySpawnTime >= 5000 && gameStarted && !gameOver) {
+    if (currentTime - lastFlyingEnemySpawnTime >= flyingEnemySpawnInterval && gameStarted && !gameOver) {
         const fromLeft = Math.random() < 0.5;
         const x = fromLeft ? -20 : worldWidth;
         const y = 50 + Math.random() * 100;
         flyingEnemies.push({
             x: x,
             y: y,
-            width: 20,
+            width: 26, // Increased by 30% from 20px
             height: 30,
             color: 'blue',
             hits: 0,
@@ -366,8 +375,31 @@ function spawnFlyingEnemies() {
     }
 }
 
-// Enemy movement and shooting logic
+// Update enemies
 function updateEnemies() {
+    const currentTime = Date.now();
+    groundEnemies.forEach(enemy => {
+        enemy.facingLeft = soldier.x < enemy.x;
+        if (currentTime - enemy.lastActionChange >= 2000) {
+            const actions = ['walkLeft', 'walkRight', 'duck', 'stand'];
+            enemy.action = actions[Math.floor(Math.random() * actions.length)];
+            enemy.lastActionChange = currentTime;
+            if (enemy.action === 'duck') {
+                enemy.height = 15;
+                enemy.y = ground.y - enemy.height;
+            } else {
+                enemy.height = 30;
+                enemy.y = ground.y - enemy.height;
+            }
+        }
+        if (enemy.action === 'walkLeft') {
+            enemy.x -= 2;
+            if (enemy.x < 0) enemy.x = 0;
+        } else if (enemy.action === 'walkRight') {
+            enemy.x += 2;
+            if (enemy.x + enemy.width > worldWidth) enemy.x = worldWidth - enemy.width;
+        }
+    });
     flyingEnemies.forEach(enemy => {
         if (enemy.x < soldier.x) {
             enemy.x += 3;
@@ -377,13 +409,14 @@ function updateEnemies() {
     });
 }
 
+// Enemy shooting logic
 function enemyShoot() {
     const currentTime = Date.now();
     groundEnemies.forEach(enemy => {
-        if (currentTime - enemy.lastShot >= 2000 && gameStarted && !gameOver) {
+        if (currentTime - enemy.lastShot >= enemyShootInterval && gameStarted && !gameOver) {
             enemyBullets.push({
                 x: enemy.x,
-                y: enemy.y + 5, // Above ducked player (y=265)
+                y: enemy.y + 5,
                 width: 5,
                 height: 2.5,
                 speed: soldier.x < enemy.x ? -10 : 10,
@@ -394,7 +427,7 @@ function enemyShoot() {
     });
     flyingEnemies.forEach(enemy => {
         const distance = Math.abs(enemy.x - soldier.x);
-        if (distance <= 10 && currentTime - enemy.lastShot >= 2000 && gameStarted && !gameOver) {
+        if (distance <= 10 && currentTime - enemy.lastShot >= enemyShootInterval && gameStarted && !gameOver) {
             const dx = soldier.x - enemy.x;
             const dy = (soldier.y + soldier.height / 2) - (enemy.y + enemy.height / 2);
             const magnitude = Math.sqrt(dx * dx + dy * dy);
@@ -449,28 +482,35 @@ function checkCollisions() {
             bullet.y < soldier.y + soldier.height &&
             bullet.y + bullet.height > soldier.y
         ) {
-            soldier.hits++;
+            soldier.damageTaken++;
             bullet.distanceTraveled = maxBulletDistance;
         }
     });
 
+    // Update score and spawn/shoot intervals on kills
+    const groundEnemyCount = groundEnemies.length;
+    const flyingEnemyCount = flyingEnemies.length;
     groundEnemies = groundEnemies.filter(enemy => enemy.hits < enemy.maxHits);
     flyingEnemies = flyingEnemies.filter(enemy => enemy.hits < enemy.maxHits);
+    const newKills = (groundEnemyCount - groundEnemies.length) + (flyingEnemyCount - flyingEnemies.length);
+    if (newKills > 0) {
+        score += newKills; // 1 point per kill
+        killCount += newKills;
+        if (killCount >= 10 && killCount % 10 === 0) {
+            groundEnemySpawnInterval = Math.max(1000, groundEnemySpawnInterval * 0.95);
+            flyingEnemySpawnInterval = Math.max(1000, flyingEnemySpawnInterval * 0.95);
+            enemyShootInterval = Math.max(500, enemyShootInterval * 0.99);
+        }
+    }
 }
 
 // Game loop
 function gameLoop() {
     if (!gameStarted || gameOver) {
         if (gameOver) {
-            ctx.fillStyle = 'black';
-            ctx.font = '48px Arial';
-            ctx.fillText('Game Over', canvasWidth / 2 - 100, gameCanvas.height / 2);
-            restartBtn.classList.add('active');
-            jumpBtn.style.display = 'none';
-            duckBtn.style.display = 'none';
-            leftBtn.style.display = 'none';
-            rightBtn.style.display = 'none';
-            shootBtn.style.display = 'none';
+            gameOverScreen.style.display = 'flex';
+            finalScoreText.textContent = `Score: ${score}`;
+            return;
         }
         return;
     }
@@ -531,7 +571,7 @@ function gameLoop() {
     checkCollisions();
 
     // Check game over
-    if (soldier.hits >= soldier.maxHits) {
+    if (soldier.damageTaken >= soldier.maxHealth) {
         gameOver = true;
     }
 
@@ -542,7 +582,7 @@ function gameLoop() {
     // Draw background
     backgroundCtx.save();
     backgroundCtx.translate(-cameraX, 0);
-    if (backgroundImage.complete) {
+    if (backgroundImage.complete && !backgroundImage.error) {
         backgroundCtx.drawImage(backgroundImage, 0, 0, worldWidth, backgroundCanvas.height);
     }
     backgroundCtx.restore();
@@ -578,7 +618,13 @@ function gameLoop() {
     groundEnemies.forEach(enemy => {
         if (enemy.x >= cameraX && enemy.x <= cameraX + canvasWidth) {
             ctx.save();
-            ctx.translate(enemy.x, 0);
+            if (enemy.facingLeft) {
+                ctx.scale(-1, 1);
+                ctx.translate(-enemy.x - enemy.width, 0);
+                ctx.translate(-enemy.width, 0);
+            } else {
+                ctx.translate(enemy.x, 0);
+            }
             if (enemyImage.complete && !enemyImage.error) {
                 ctx.drawImage(enemyImage, 0, enemy.y, enemy.width, enemy.height);
             } else {
@@ -622,10 +668,11 @@ function gameLoop() {
 
     ctx.restore();
 
-    // Draw hit counters
+    // Draw HUD (health and score)
     ctx.fillStyle = 'black';
     ctx.font = '16px Arial';
-    ctx.fillText(`Player Hits: ${soldier.hits}/${soldier.maxHits}`, 10, 20);
+    ctx.fillText(`Health: ${soldier.maxHealth - soldier.damageTaken}/${soldier.maxHealth}`, 10, 20);
+    ctx.fillText(`Score: ${score}`, 10, 40);
     groundEnemies.forEach((enemy, index) => {
         if (enemy.x >= cameraX && enemy.x <= cameraX + canvasWidth) {
             ctx.fillText(`${enemy.hits}/3`, enemy.x - cameraX, enemy.y - 10);

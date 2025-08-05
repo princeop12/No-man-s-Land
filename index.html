@@ -8,11 +8,17 @@
 </head>
 <body>
     <div id="loadingScreen">
-        <div id="loadingText" style="font-weight: bold;">No man's Land</div>
+        <div id="loadingText">No man's Land</div>
+        <button id="startBtn" class="game-btn">Start Game</button>
     </div>
     <div id="gameContainer" style="display: none;">
         <canvas id="backgroundCanvas"></canvas>
         <canvas id="gameCanvas"></canvas>
+        <div id="gameOverScreen" style="display: none;">
+            <div id="gameOverText">You're Wasted</div>
+            <div id="finalScore"></div>
+            <button id="restartBtn" class="game-btn">Restart Game</button>
+        </div>
         <div id="controls">
             <div class="horizontal-controls">
                 <button id="leftBtn">←</button>
@@ -24,8 +30,6 @@
             <div class="horizontal-controls">
                 <button id="rightBtn">→</button>
             </div>
-            <button id="startBtn">Start Game</button>
-            <button id="restartBtn">Restart Game</button>
         </div>
         <div id="shootBtn" class="analog-btn">
             <div class="analog-thumb"></div>
