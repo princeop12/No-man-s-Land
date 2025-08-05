@@ -19,9 +19,26 @@ gameCanvas.height = 400;
 let cameraX = 0;
 const cameraMaxX = worldWidth - canvasWidth;
 
-// Load background image
+// Load images with error handling
 const backgroundImage = new Image();
 backgroundImage.src = 'background.png';
+backgroundImage.onerror = () => console.error('Failed to load background.png');
+
+const playerImage = new Image();
+playerImage.src = 'player.png';
+playerImage.onerror = () => console.error('Failed to load player.png');
+
+const duckImage = new Image();
+duckImage.src = 'duck.png';
+duckImage.onerror = () => console.error('Failed to load duck.png');
+
+const enemyImage = new Image();
+enemyImage.src = 'enemy.png';
+enemyImage.onerror = () => console.error('Failed to load enemy.png');
+
+const droneImage = new Image();
+droneImage.src = 'drone.png';
+droneImage.onerror = () => console.error('Failed to load drone.png');
 
 // Player soldier properties
 const soldier = {
@@ -34,9 +51,10 @@ const soldier = {
     velocityY: 0,
     isJumping: false,
     isDucking: false,
-    color: 'red',
+    color: 'red', // Fallback
     hits: 0,
-    maxHits: 50
+    maxHits: 50,
+    facingLeft: false
 };
 
 // Ground properties
@@ -49,10 +67,12 @@ const ground = {
 // Arrays and game state
 let playerBullets = [];
 let enemyBullets = [];
-let enemies = [];
+let groundEnemies = [];
+let flyingEnemies = [];
 let gameOver = false;
 let gameStarted = false;
-let lastSpawnTime = 0;
+let lastGroundEnemySpawnTime = 0;
+let lastFlyingEnemySpawnTime = 0;
 let isMovingLeft = false;
 let isMovingRight = false;
 let isShooting = false;
@@ -60,7 +80,7 @@ let shootDirection = { x: 0, y: 0 };
 
 // Game constants
 const gravity = 0.6;
-const maxBulletDistance = 300;
+const maxBulletDistance = 200; // Increased for visibility
 const shootInterval = 200;
 let lastShotTime = 0;
 
@@ -106,16 +126,19 @@ restartBtn.addEventListener('click', () => {
     soldier.isJumping = false;
     soldier.isDucking = false;
     soldier.hits = 0;
+    soldier.facingLeft = false;
     playerBullets = [];
     enemyBullets = [];
-    enemies = [];
+    groundEnemies = [];
+    flyingEnemies = [];
     gameOver = false;
     gameStarted = true;
     isMovingLeft = false;
     isMovingRight = false;
     isShooting = false;
     shootDirection = { x: 0, y: 0 };
-    lastSpawnTime = Date.now();
+    lastGroundEnemySpawnTime = Date.now();
+    lastFlyingEnemySpawnTime = Date.now();
     cameraX = 0;
     analogThumb.style.transform = 'translate(0, 0)';
     restartBtn.classList.remove('active');
@@ -148,9 +171,27 @@ duckBtn.addEventListener('mouseup', () => {
         soldier.y = ground.y - soldier.height;
     }
 });
+duckBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (!soldier.isJumping && gameStarted && !gameOver) {
+        soldier.isDucking = true;
+        soldier.height = 15;
+        soldier.y = ground.y - soldier.height;
+    }
+});
+duckBtn.addEventListener('touchend', () => {
+    if (gameStarted && !gameOver) {
+        soldier.isDucking = false;
+        soldier.height = 30;
+        soldier.y = ground.y - soldier.height;
+    }
+});
 
 leftBtn.addEventListener('mousedown', () => {
-    if (gameStarted && !gameOver) isMovingLeft = true;
+    if (gameStarted && !gameOver) {
+        isMovingLeft = true;
+        soldier.facingLeft = true;
+    }
 });
 leftBtn.addEventListener('mouseup', () => {
     isMovingLeft = false;
@@ -160,7 +201,10 @@ leftBtn.addEventListener('mouseout', () => {
 });
 leftBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    if (gameStarted && !gameOver) isMovingLeft = true;
+    if (gameStarted && !gameOver) {
+        isMovingLeft = true;
+        soldier.facingLeft = true;
+    }
 });
 leftBtn.addEventListener('touchend', () => {
     isMovingLeft = false;
@@ -170,7 +214,10 @@ leftBtn.addEventListener('touchcancel', () => {
 });
 
 rightBtn.addEventListener('mousedown', () => {
-    if (gameStarted && !gameOver) isMovingRight = true;
+    if (gameStarted && !gameOver) {
+        isMovingRight = true;
+        soldier.facingLeft = false;
+    }
 });
 rightBtn.addEventListener('mouseup', () => {
     isMovingRight = false;
@@ -180,7 +227,10 @@ rightBtn.addEventListener('mouseout', () => {
 });
 rightBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    if (gameStarted && !gameOver) isMovingRight = true;
+    if (gameStarted && !gameOver) {
+        isMovingRight = true;
+        soldier.facingLeft = false;
+    }
 });
 rightBtn.addEventListener('touchend', () => {
     isMovingRight = false;
@@ -196,7 +246,7 @@ function updateAnalogThumb(clientX, clientY) {
     const centerY = rect.top + rect.height / 2;
     let dx = clientX - centerX;
     let dy = clientY - centerY;
-    const maxDistance = 19.5; // 30% larger than 15 (half of 65px - 26px thumb)
+    const maxDistance = 19.5;
     const magnitude = Math.sqrt(dx * dx + dy * dy);
     if (magnitude > maxDistance) {
         dx = (dx / magnitude) * maxDistance;
@@ -205,6 +255,7 @@ function updateAnalogThumb(clientX, clientY) {
     analogThumb.style.transform = `translate(${dx}px, ${dy}px)`;
     shootDirection = { x: dx / maxDistance, y: dy / maxDistance };
     if (magnitude === 0) shootDirection = { x: 0, y: 0 };
+    soldier.facingLeft = shootDirection.x < 0; // Face left if shooting left
 }
 
 function fireBullet() {
@@ -213,7 +264,7 @@ function fireBullet() {
     if (currentTime - lastShotTime >= shootInterval) {
         const bulletSpeed = 10;
         playerBullets.push({
-            x: soldier.x + soldier.width,
+            x: soldier.x + (soldier.facingLeft ? 0 : soldier.width), // Adjust bullet start
             y: soldier.y + soldier.height / 2,
             width: 5,
             height: 2.5,
@@ -272,12 +323,12 @@ document.addEventListener('touchcancel', () => {
     analogThumb.style.transform = 'translate(0, 0)';
 });
 
-// Spawn enemy soldiers
-function spawnEnemies() {
+// Spawn enemies
+function spawnGroundEnemies() {
     const currentTime = Date.now();
-    if (currentTime - lastSpawnTime >= 5000 && gameStarted && !gameOver) {
+    if (currentTime - lastGroundEnemySpawnTime >= 5000 && gameStarted && !gameOver) {
         for (let i = 0; i < 2; i++) {
-            enemies.push({
+            groundEnemies.push({
                 x: cameraX + canvasWidth + Math.random() * (worldWidth - cameraX - canvasWidth - 20),
                 y: ground.y - 30,
                 width: 20,
@@ -285,24 +336,78 @@ function spawnEnemies() {
                 color: 'blue',
                 hits: 0,
                 maxHits: 3,
-                lastShot: 0
+                lastShot: 0,
+                isFlying: false
             });
         }
-        lastSpawnTime = currentTime;
+        lastGroundEnemySpawnTime = currentTime;
     }
 }
 
-// Enemy shooting logic
+function spawnFlyingEnemies() {
+    const currentTime = Date.now();
+    if (currentTime - lastFlyingEnemySpawnTime >= 5000 && gameStarted && !gameOver) {
+        const fromLeft = Math.random() < 0.5;
+        const x = fromLeft ? -20 : worldWidth;
+        const y = 50 + Math.random() * 100;
+        flyingEnemies.push({
+            x: x,
+            y: y,
+            width: 20,
+            height: 30,
+            color: 'blue',
+            hits: 0,
+            maxHits: 3,
+            lastShot: 0,
+            isFlying: true,
+            fromLeft: fromLeft
+        });
+        lastFlyingEnemySpawnTime = currentTime;
+    }
+}
+
+// Enemy movement and shooting logic
+function updateEnemies() {
+    flyingEnemies.forEach(enemy => {
+        if (enemy.x < soldier.x) {
+            enemy.x += 3;
+        } else if (enemy.x > soldier.x) {
+            enemy.x -= 3;
+        }
+    });
+}
+
 function enemyShoot() {
     const currentTime = Date.now();
-    enemies.forEach(enemy => {
+    groundEnemies.forEach(enemy => {
         if (currentTime - enemy.lastShot >= 2000 && gameStarted && !gameOver) {
+            enemyBullets.push({
+                x: enemy.x,
+                y: enemy.y + 5, // Above ducked player (y=265)
+                width: 5,
+                height: 2.5,
+                speed: soldier.x < enemy.x ? -10 : 10,
+                distanceTraveled: 0
+            });
+            enemy.lastShot = currentTime;
+        }
+    });
+    flyingEnemies.forEach(enemy => {
+        const distance = Math.abs(enemy.x - soldier.x);
+        if (distance <= 10 && currentTime - enemy.lastShot >= 2000 && gameStarted && !gameOver) {
+            const dx = soldier.x - enemy.x;
+            const dy = (soldier.y + soldier.height / 2) - (enemy.y + enemy.height / 2);
+            const magnitude = Math.sqrt(dx * dx + dy * dy);
+            const speed = 10;
+            const speedX = magnitude > 0 ? (dx / magnitude) * speed : 0;
+            const speedY = magnitude > 0 ? (dy / magnitude) * speed : 0;
             enemyBullets.push({
                 x: enemy.x,
                 y: enemy.y + enemy.height / 2,
                 width: 5,
                 height: 2.5,
-                speed: -10,
+                speedX: speedX,
+                speedY: speedY,
                 distanceTraveled: 0
             });
             enemy.lastShot = currentTime;
@@ -313,7 +418,18 @@ function enemyShoot() {
 // Collision detection
 function checkCollisions() {
     playerBullets.forEach(bullet => {
-        enemies.forEach(enemy => {
+        groundEnemies.forEach(enemy => {
+            if (
+                bullet.x < enemy.x + enemy.width &&
+                bullet.x + bullet.width > enemy.x &&
+                bullet.y < enemy.y + enemy.height &&
+                bullet.y + bullet.height > enemy.y
+            ) {
+                enemy.hits++;
+                bullet.distanceTraveled = maxBulletDistance;
+            }
+        });
+        flyingEnemies.forEach(enemy => {
             if (
                 bullet.x < enemy.x + enemy.width &&
                 bullet.x + bullet.width > enemy.x &&
@@ -338,7 +454,8 @@ function checkCollisions() {
         }
     });
 
-    enemies = enemies.filter(enemy => enemy.hits < enemy.maxHits);
+    groundEnemies = groundEnemies.filter(enemy => enemy.hits < enemy.maxHits);
+    flyingEnemies = flyingEnemies.filter(enemy => enemy.hits < enemy.maxHits);
 }
 
 // Game loop
@@ -389,8 +506,10 @@ function gameLoop() {
         fireBullet();
     }
 
-    // Spawn and shoot enemies
-    spawnEnemies();
+    // Spawn and update enemies
+    spawnGroundEnemies();
+    spawnFlyingEnemies();
+    updateEnemies();
     enemyShoot();
 
     // Update bullets
@@ -403,8 +522,9 @@ function gameLoop() {
 
     enemyBullets = enemyBullets.filter(bullet => bullet.distanceTraveled < maxBulletDistance);
     enemyBullets.forEach(bullet => {
-        bullet.x += bullet.speed;
-        bullet.distanceTraveled += Math.abs(bullet.speed);
+        bullet.x += bullet.speedX || bullet.speed;
+        bullet.y += bullet.speedY || 0;
+        bullet.distanceTraveled += Math.sqrt((bullet.speedX || bullet.speed) ** 2 + (bullet.speedY || 0) ** 2);
     });
 
     // Check collisions
@@ -436,14 +556,51 @@ function gameLoop() {
     ctx.fillRect(0, ground.y, worldWidth, ground.height);
 
     // Draw player soldier
-    ctx.fillStyle = soldier.color;
-    ctx.fillRect(soldier.x, soldier.y, soldier.width, soldier.height);
+    ctx.save();
+    if (soldier.facingLeft) {
+        ctx.scale(-1, 1);
+        ctx.translate(-soldier.x - soldier.width, 0);
+        ctx.translate(-soldier.width, 0);
+    } else {
+        ctx.translate(soldier.x, 0);
+    }
+    if (soldier.isDucking && duckImage.complete && !duckImage.error) {
+        ctx.drawImage(duckImage, 0, soldier.y, soldier.width, soldier.height);
+    } else if (!soldier.isDucking && playerImage.complete && !playerImage.error) {
+        ctx.drawImage(playerImage, 0, soldier.y, soldier.width, soldier.height);
+    } else {
+        ctx.fillStyle = soldier.color;
+        ctx.fillRect(0, soldier.y, soldier.width, soldier.height);
+    }
+    ctx.restore();
 
-    // Draw enemies
-    ctx.fillStyle = 'blue';
-    enemies.forEach(enemy => {
+    // Draw ground enemies
+    groundEnemies.forEach(enemy => {
         if (enemy.x >= cameraX && enemy.x <= cameraX + canvasWidth) {
-            ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+            ctx.save();
+            ctx.translate(enemy.x, 0);
+            if (enemyImage.complete && !enemyImage.error) {
+                ctx.drawImage(enemyImage, 0, enemy.y, enemy.width, enemy.height);
+            } else {
+                ctx.fillStyle = enemy.color;
+                ctx.fillRect(0, enemy.y, enemy.width, enemy.height);
+            }
+            ctx.restore();
+        }
+    });
+
+    // Draw flying enemies
+    flyingEnemies.forEach(enemy => {
+        if (enemy.x >= cameraX && enemy.x <= cameraX + canvasWidth) {
+            ctx.save();
+            ctx.translate(enemy.x, 0);
+            if (droneImage.complete && !droneImage.error) {
+                ctx.drawImage(droneImage, 0, enemy.y, enemy.width, enemy.height);
+            } else {
+                ctx.fillStyle = enemy.color;
+                ctx.fillRect(0, enemy.y, enemy.width, enemy.height);
+            }
+            ctx.restore();
         }
     });
 
@@ -469,7 +626,12 @@ function gameLoop() {
     ctx.fillStyle = 'black';
     ctx.font = '16px Arial';
     ctx.fillText(`Player Hits: ${soldier.hits}/${soldier.maxHits}`, 10, 20);
-    enemies.forEach((enemy, index) => {
+    groundEnemies.forEach((enemy, index) => {
+        if (enemy.x >= cameraX && enemy.x <= cameraX + canvasWidth) {
+            ctx.fillText(`${enemy.hits}/3`, enemy.x - cameraX, enemy.y - 10);
+        }
+    });
+    flyingEnemies.forEach((enemy, index) => {
         if (enemy.x >= cameraX && enemy.x <= cameraX + canvasWidth) {
             ctx.fillText(`${enemy.hits}/3`, enemy.x - cameraX, enemy.y - 10);
         }

@@ -73,7 +73,7 @@ body {
     bottom: 10px;
     left: 10px;
     display: flex;
-    align-items: center; /* Horizontal alignment for wider layout */
+    align-items: center;
     gap: 8px;
     background: rgba(0, 0, 0, 0.7);
     padding: 8px;
@@ -84,13 +84,13 @@ body {
 .vertical-controls {
     display: flex;
     flex-direction: column;
-    gap: 4px; /* Smaller vertical gap for jump/duck */
+    gap: 4px;
     align-items: center;
 }
 
 .horizontal-controls {
     display: flex;
-    flex-direction: column; /* Stack left/right vertically */
+    flex-direction: column;
     gap: 4px;
     align-items: center;
 }
@@ -125,10 +125,10 @@ button:active {
 }
 
 #shootBtn {
-    position: fixed;
+    position: absolute;
     top: 320px;
     left: 80%;
-    width: 65px; /* 30% larger than 50px */
+    width: 65px;
     height: 65px;
     background-color: #333;
     border-radius: 50%;
@@ -142,7 +142,7 @@ button:active {
 }
 
 .analog-thumb {
-    width: 26px; /* 30% larger than 20px */
+    width: 26px;
     height: 26px;
     background-color: #fff;
     border-radius: 50%;
