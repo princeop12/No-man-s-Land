@@ -26,7 +26,7 @@ backgroundImage.src = 'background.png';
 // Player soldier properties
 const soldier = {
     x: 50,
-    y: 280, // Adjusted for taller ground
+    y: 250, // Adjusted for taller ground
     width: 20,
     height: 30,
     speed: 5,
@@ -41,8 +41,8 @@ const soldier = {
 
 // Ground properties
 const ground = {
-    y: 310, // Adjusted to make ground taller
-    height: 90, // Increased from 60
+    y: 280, // Adjusted to make ground taller (extends upward)
+    height: 120, // Increased from 90
     color: 'green'
 };
 
@@ -61,7 +61,7 @@ let shootDirection = { x: 0, y: 0 };
 // Game constants
 const gravity = 0.6;
 const maxBulletDistance = 300;
-const shootInterval = 200; // Fire every 200ms during drag
+const shootInterval = 200;
 let lastShotTime = 0;
 
 // Button references
@@ -101,7 +101,7 @@ startBtn.addEventListener('click', () => {
 restartBtn.addEventListener('click', () => {
     // Reset game state
     soldier.x = 50;
-    soldier.y = 280;
+    soldier.y = 250;
     soldier.velocityY = 0;
     soldier.isJumping = false;
     soldier.isDucking = false;
@@ -196,7 +196,7 @@ function updateAnalogThumb(clientX, clientY) {
     const centerY = rect.top + rect.height / 2;
     let dx = clientX - centerX;
     let dy = clientY - centerY;
-    const maxDistance = 15; // Max thumb movement (half of button radius - thumb radius)
+    const maxDistance = 15;
     const magnitude = Math.sqrt(dx * dx + dy * dy);
     if (magnitude > maxDistance) {
         dx = (dx / magnitude) * maxDistance;
