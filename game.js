@@ -26,7 +26,7 @@ backgroundImage.src = 'background.png';
 // Player soldier properties
 const soldier = {
     x: 50,
-    y: 250, // Adjusted for taller ground
+    y: 250,
     width: 20,
     height: 30,
     speed: 5,
@@ -41,8 +41,8 @@ const soldier = {
 
 // Ground properties
 const ground = {
-    y: 280, // Adjusted to make ground taller (extends upward)
-    height: 120, // Increased from 90
+    y: 280,
+    height: 120,
     color: 'green'
 };
 
@@ -196,7 +196,7 @@ function updateAnalogThumb(clientX, clientY) {
     const centerY = rect.top + rect.height / 2;
     let dx = clientX - centerX;
     let dy = clientY - centerY;
-    const maxDistance = 15;
+    const maxDistance = 19.5; // 30% larger than 15 (half of 65px - 26px thumb)
     const magnitude = Math.sqrt(dx * dx + dy * dy);
     if (magnitude > maxDistance) {
         dx = (dx / magnitude) * maxDistance;

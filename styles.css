@@ -73,26 +73,33 @@ body {
     bottom: 10px;
     left: 10px;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px; /* Smaller gap */
+    align-items: center; /* Horizontal alignment for wider layout */
+    gap: 8px;
     background: rgba(0, 0, 0, 0.7);
-    padding: 8px; /* Smaller padding */
-    border-radius: 6px; /* Smaller radius */
+    padding: 8px;
+    border-radius: 6px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.vertical-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 4px; /* Smaller vertical gap for jump/duck */
+    align-items: center;
 }
 
 .horizontal-controls {
     display: flex;
-    gap: 8px; /* Smaller gap */
+    flex-direction: column; /* Stack left/right vertically */
+    gap: 4px;
     align-items: center;
 }
 
 button {
-    width: 30px; /* Smaller buttons */
+    width: 30px;
     height: 30px;
-    font-size: 12px; /* Smaller font */
-    line-height: 30px; /* Center arrow vertically */
+    font-size: 12px;
+    line-height: 30px;
     text-align: center;
     cursor: pointer;
     background-color: #333;
@@ -104,7 +111,7 @@ button {
 }
 
 #startBtn, #restartBtn {
-    width: auto; /* Keep Start/Restart buttons wider */
+    width: auto;
     padding: 8px 16px;
 }
 
@@ -121,8 +128,8 @@ button:active {
     position: absolute;
     bottom: 10px;
     right: 10px;
-    width: 50px;
-    height: 50px;
+    width: 65px; /* 30% larger than 50px */
+    height: 65px;
     background-color: #333;
     border-radius: 50%;
     position: relative;
@@ -135,8 +142,8 @@ button:active {
 }
 
 .analog-thumb {
-    width: 20px;
-    height: 20px;
+    width: 26px; /* 30% larger than 20px */
+    height: 26px;
     background-color: #fff;
     border-radius: 50%;
     position: absolute;
