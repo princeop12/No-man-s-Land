@@ -357,8 +357,8 @@ function spawnGroundEnemies() {
 function spawnFlyingEnemies() {
     const currentTime = Date.now();
     if (currentTime - lastFlyingEnemySpawnTime >= flyingEnemySpawnInterval && gameStarted && !gameOver) {
-        const fromLeft = Math.random() < 0.5;
-        const x = fromLeft ? -20 : worldWidth;
+        const direction = Math.random() < 0.5 ? 1 : -1; // 1 for right, -1 for left
+        const x = direction === 1 ? -20 : worldWidth;
         const y = 50 + Math.random() * 100;
         flyingEnemies.push({
             x: x,
@@ -370,7 +370,7 @@ function spawnFlyingEnemies() {
             maxHits: 3,
             lastShot: 0,
             isFlying: true,
-            fromLeft: fromLeft,
+            direction: direction, // Direction for continuous movement
             zigZagTime: 0 // Track time for zig-zag movement
         });
         lastFlyingEnemySpawnTime = currentTime;
@@ -403,18 +403,22 @@ function updateEnemies() {
         }
     });
     flyingEnemies.forEach(enemy => {
-        // Zig-zag movement
+        // Continuous zig-zag movement across entire game world
         const baseSpeed = 3.15; // Increased from 3 to 3.15 (5%)
         const zigZagAmplitude = 10; // Y oscillation amplitude
         const zigZagFrequency = 0.05; // Controls wave speed
         enemy.zigZagTime += 1; // Increment time for sine wave
-        // X movement: Move toward player with slight random angle
+        // X movement: Move in direction with slight random angle
         const angle = Math.random() * Math.PI / 6 - Math.PI / 12; // Random angle between -15° and 15°
-        const xSpeed = baseSpeed * Math.cos(angle);
-        if (enemy.x < soldier.x) {
-            enemy.x += xSpeed;
-        } else if (enemy.x > soldier.x) {
-            enemy.x -= xSpeed;
+        const xSpeed = baseSpeed * Math.cos(angle) * enemy.direction;
+        enemy.x += xSpeed;
+        // Reverse direction at world edges
+        if (enemy.x <= 0) {
+            enemy.x = 0;
+            enemy.direction = 1; // Move right
+        } else if (enemy.x + enemy.width >= worldWidth) {
+            enemy.x = worldWidth - enemy.width;
+            enemy.direction = -1; // Move left
         }
         // Y movement: Sinusoidal zig-zag
         enemy.y += zigZagAmplitude * Math.sin(zigZagFrequency * enemy.zigZagTime);
@@ -441,8 +445,7 @@ function enemyShoot() {
         }
     });
     flyingEnemies.forEach(enemy => {
-        const distance = Math.abs(enemy.x - soldier.x);
-        if (distance <= 10 && currentTime - enemy.lastShot >= enemyShootInterval && gameStarted && !gameOver) {
+        if (currentTime - enemy.lastShot >= enemyShootInterval && gameStarted && !gameOver) {
             const dx = soldier.x - enemy.x;
             const dy = (soldier.y + soldier.height / 2) - (enemy.y + enemy.height / 2);
             const magnitude = Math.sqrt(dx * dx + dy * dy);
@@ -659,7 +662,7 @@ function gameLoop() {
                 ctx.drawImage(droneImage, 0, enemy.y, enemy.width, enemy.height);
             } else {
                 ctx.fillStyle = enemy.color;
-                ctx.fillRect(0, entity.y, enemy.width, enemy.height);
+                ctx.fillRect(0, enemy.y, enemy.width, enemy.height);
             }
             ctx.restore();
         }
