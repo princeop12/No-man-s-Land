@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soldier Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="loadingScreen">
+        <div id="loadingText">No man's Land</div>
+    </div>
+    <div id="gameContainer" style="display: none;">
+        <canvas id="backgroundCanvas"></canvas>
+        <canvas id="gameCanvas"></canvas>
+        <div id="controls">
+            <button id="jumpBtn">↑ Jump</button>
+            <div class="horizontal-controls">
+                <button id="leftBtn">← Left</button>
+                <div id="shootBtn" class="analog-btn">Shoot</div>
+                <button id="rightBtn">→ Right</button>
+            </div>
+            <button id="duckBtn">↓ Duck</button>
+            <button id="startBtn">Start Game</button>
+            <button id="restartBtn">Restart Game</button>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
