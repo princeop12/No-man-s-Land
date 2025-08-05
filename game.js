@@ -55,7 +55,7 @@ const soldier = {
     isDucking: false,
     color: 'red',
     damageTaken: 0,
-    maxHealth: 1000,
+    maxHealth: 500, // Reduced from 1000 to 500
     facingLeft: false
 };
 
@@ -87,7 +87,8 @@ let killCount = 0;
 
 // Game constants
 const gravity = 0.6;
-const maxBulletDistance = 200;
+const maxPlayerBulletDistance = 240; // Increased from 200 to 240 (20%)
+const maxEnemyBulletDistance = 260; // Increased from 200 to 260 (30%)
 const shootInterval = 200;
 let lastShotTime = 0;
 
@@ -369,7 +370,8 @@ function spawnFlyingEnemies() {
             maxHits: 3,
             lastShot: 0,
             isFlying: true,
-            fromLeft: fromLeft
+            fromLeft: fromLeft,
+            zigZagTime: 0 // Track time for zig-zag movement
         });
         lastFlyingEnemySpawnTime = currentTime;
     }
@@ -393,19 +395,32 @@ function updateEnemies() {
             }
         }
         if (enemy.action === 'walkLeft') {
-            enemy.x -= 2;
+            enemy.x -= 2.1; // Increased from 2 to 2.1 (5%)
             if (enemy.x < 0) enemy.x = 0;
         } else if (enemy.action === 'walkRight') {
-            enemy.x += 2;
+            enemy.x += 2.1; // Increased from 2 to 2.1 (5%)
             if (enemy.x + enemy.width > worldWidth) enemy.x = worldWidth - enemy.width;
         }
     });
     flyingEnemies.forEach(enemy => {
+        // Zig-zag movement
+        const baseSpeed = 3.15; // Increased from 3 to 3.15 (5%)
+        const zigZagAmplitude = 10; // Y oscillation amplitude
+        const zigZagFrequency = 0.05; // Controls wave speed
+        enemy.zigZagTime += 1; // Increment time for sine wave
+        // X movement: Move toward player with slight random angle
+        const angle = Math.random() * Math.PI / 6 - Math.PI / 12; // Random angle between -15° and 15°
+        const xSpeed = baseSpeed * Math.cos(angle);
         if (enemy.x < soldier.x) {
-            enemy.x += 3;
+            enemy.x += xSpeed;
         } else if (enemy.x > soldier.x) {
-            enemy.x -= 3;
+            enemy.x -= xSpeed;
         }
+        // Y movement: Sinusoidal zig-zag
+        enemy.y += zigZagAmplitude * Math.sin(zigZagFrequency * enemy.zigZagTime);
+        // Keep y within bounds (50 to 150)
+        if (enemy.y < 50) enemy.y = 50;
+        if (enemy.y > 150) enemy.y = 150;
     });
 }
 
@@ -419,7 +434,7 @@ function enemyShoot() {
                 y: enemy.y + 5,
                 width: 5,
                 height: 2.5,
-                speed: soldier.x < enemy.x ? -10 : 10,
+                speed: soldier.x < enemy.x ? -12 : 12, // Increased from 10 to 12 (20%)
                 distanceTraveled: 0
             });
             enemy.lastShot = currentTime;
@@ -431,7 +446,7 @@ function enemyShoot() {
             const dx = soldier.x - enemy.x;
             const dy = (soldier.y + soldier.height / 2) - (enemy.y + enemy.height / 2);
             const magnitude = Math.sqrt(dx * dx + dy * dy);
-            const speed = 10;
+            const speed = 12; // Increased from 10 to 12 (20%)
             const speedX = magnitude > 0 ? (dx / magnitude) * speed : 0;
             const speedY = magnitude > 0 ? (dy / magnitude) * speed : 0;
             enemyBullets.push({
@@ -459,7 +474,7 @@ function checkCollisions() {
                 bullet.y + bullet.height > enemy.y
             ) {
                 enemy.hits++;
-                bullet.distanceTraveled = maxBulletDistance;
+                bullet.distanceTraveled = maxPlayerBulletDistance;
             }
         });
         flyingEnemies.forEach(enemy => {
@@ -470,7 +485,7 @@ function checkCollisions() {
                 bullet.y + bullet.height > enemy.y
             ) {
                 enemy.hits++;
-                bullet.distanceTraveled = maxBulletDistance;
+                bullet.distanceTraveled = maxPlayerBulletDistance;
             }
         });
     });
@@ -483,7 +498,7 @@ function checkCollisions() {
             bullet.y + bullet.height > soldier.y
         ) {
             soldier.damageTaken++;
-            bullet.distanceTraveled = maxBulletDistance;
+            bullet.distanceTraveled = maxEnemyBulletDistance;
         }
     });
 
@@ -553,14 +568,14 @@ function gameLoop() {
     enemyShoot();
 
     // Update bullets
-    playerBullets = playerBullets.filter(bullet => bullet.distanceTraveled < maxBulletDistance);
+    playerBullets = playerBullets.filter(bullet => bullet.distanceTraveled < maxPlayerBulletDistance);
     playerBullets.forEach(bullet => {
         bullet.x += bullet.speedX;
         bullet.y += bullet.speedY;
         bullet.distanceTraveled += Math.sqrt(bullet.speedX ** 2 + bullet.speedY ** 2);
     });
 
-    enemyBullets = enemyBullets.filter(bullet => bullet.distanceTraveled < maxBulletDistance);
+    enemyBullets = enemyBullets.filter(bullet => bullet.distanceTraveled < maxEnemyBulletDistance);
     enemyBullets.forEach(bullet => {
         bullet.x += bullet.speedX || bullet.speed;
         bullet.y += bullet.speedY || 0;
@@ -644,7 +659,7 @@ function gameLoop() {
                 ctx.drawImage(droneImage, 0, enemy.y, enemy.width, enemy.height);
             } else {
                 ctx.fillStyle = enemy.color;
-                ctx.fillRect(0, enemy.y, enemy.width, enemy.height);
+                ctx.fillRect(0, entity.y, enemy.width, enemy.height);
             }
             ctx.restore();
         }
