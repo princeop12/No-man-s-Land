@@ -4,6 +4,8 @@ const backgroundCtx = backgroundCanvas.getContext('2d');
 const ctx = gameCanvas.getContext('2d');
 const gameContainer = document.getElementById('gameContainer');
 const loadingScreen = document.getElementById('loadingScreen');
+const shootBtn = document.getElementById('shootBtn');
+const analogThumb = document.querySelector('.analog-thumb');
 
 // Set canvas and world dimensions
 const worldWidth = 1200;
@@ -24,7 +26,7 @@ backgroundImage.src = 'background.png';
 // Player soldier properties
 const soldier = {
     x: 50,
-    y: 310,
+    y: 280, // Adjusted for taller ground
     width: 20,
     height: 30,
     speed: 5,
@@ -34,13 +36,13 @@ const soldier = {
     isDucking: false,
     color: 'red',
     hits: 0,
-    maxHits: 50 // Increased to 50
+    maxHits: 50
 };
 
 // Ground properties
 const ground = {
-    y: 340,
-    height: 60,
+    y: 310, // Adjusted to make ground taller
+    height: 90, // Increased from 60
     color: 'green'
 };
 
@@ -53,10 +55,14 @@ let gameStarted = false;
 let lastSpawnTime = 0;
 let isMovingLeft = false;
 let isMovingRight = false;
+let isShooting = false;
+let shootDirection = { x: 0, y: 0 };
 
 // Game constants
 const gravity = 0.6;
 const maxBulletDistance = 300;
+const shootInterval = 200; // Fire every 200ms during drag
+let lastShotTime = 0;
 
 // Button references
 const startBtn = document.getElementById('startBtn');
@@ -65,7 +71,6 @@ const jumpBtn = document.getElementById('jumpBtn');
 const duckBtn = document.getElementById('duckBtn');
 const leftBtn = document.getElementById('leftBtn');
 const rightBtn = document.getElementById('rightBtn');
-const shootBtn = document.getElementById('shootBtn');
 
 // Initialize button visibility
 startBtn.classList.add('active');
@@ -89,14 +94,14 @@ startBtn.addEventListener('click', () => {
     duckBtn.style.display = 'block';
     leftBtn.style.display = 'block';
     rightBtn.style.display = 'block';
-    shootBtn.style.display = 'block';
+    shootBtn.style.display = 'flex';
     gameLoop();
 });
 
 restartBtn.addEventListener('click', () => {
     // Reset game state
     soldier.x = 50;
-    soldier.y = 310;
+    soldier.y = 280;
     soldier.velocityY = 0;
     soldier.isJumping = false;
     soldier.isDucking = false;
@@ -108,14 +113,17 @@ restartBtn.addEventListener('click', () => {
     gameStarted = true;
     isMovingLeft = false;
     isMovingRight = false;
+    isShooting = false;
+    shootDirection = { x: 0, y: 0 };
     lastSpawnTime = Date.now();
     cameraX = 0;
+    analogThumb.style.transform = 'translate(0, 0)';
     restartBtn.classList.remove('active');
     jumpBtn.style.display = 'block';
     duckBtn.style.display = 'block';
     leftBtn.style.display = 'block';
     rightBtn.style.display = 'block';
-    shootBtn.style.display = 'block';
+    shootBtn.style.display = 'flex';
     gameLoop();
 });
 
@@ -182,46 +190,87 @@ rightBtn.addEventListener('touchcancel', () => {
 });
 
 // Analog shoot button logic
+function updateAnalogThumb(clientX, clientY) {
+    const rect = shootBtn.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
+    const maxDistance = 15; // Max thumb movement (half of button radius - thumb radius)
+    const magnitude = Math.sqrt(dx * dx + dy * dy);
+    if (magnitude > maxDistance) {
+        dx = (dx / magnitude) * maxDistance;
+        dy = (dy / magnitude) * maxDistance;
+    }
+    analogThumb.style.transform = `translate(${dx}px, ${dy}px)`;
+    shootDirection = { x: dx / maxDistance, y: dy / maxDistance };
+    if (magnitude === 0) shootDirection = { x: 0, y: 0 };
+}
+
+function fireBullet() {
+    if (shootDirection.x === 0 && shootDirection.y === 0) return;
+    const currentTime = Date.now();
+    if (currentTime - lastShotTime >= shootInterval) {
+        const bulletSpeed = 10;
+        playerBullets.push({
+            x: soldier.x + soldier.width,
+            y: soldier.y + soldier.height / 2,
+            width: 5,
+            height: 2.5,
+            speedX: shootDirection.x * bulletSpeed,
+            speedY: shootDirection.y * bulletSpeed,
+            distanceTraveled: 0
+        });
+        lastShotTime = currentTime;
+    }
+}
+
+// Mouse drag events
 shootBtn.addEventListener('mousedown', (e) => {
     if (gameStarted && !gameOver) {
-        const rect = shootBtn.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const clickX = e.clientX - centerX;
-        const clickY = e.clientY - centerY;
-        fireBullet(clickX, clickY);
+        isShooting = true;
+        updateAnalogThumb(e.clientX, e.clientY);
+        fireBullet();
     }
 });
+document.addEventListener('mousemove', (e) => {
+    if (isShooting && gameStarted && !gameOver) {
+        updateAnalogThumb(e.clientX, e.clientY);
+    }
+});
+document.addEventListener('mouseup', () => {
+    isShooting = false;
+    shootDirection = { x: 0, y: 0 };
+    analogThumb.style.transform = 'translate(0, 0)';
+});
+
+// Touch drag events
 shootBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
     if (gameStarted && !gameOver) {
-        const rect = shootBtn.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
+        isShooting = true;
         const touch = e.touches[0];
-        const clickX = touch.clientX - centerX;
-        const clickY = touch.clientY - centerY;
-        fireBullet(clickX, clickY);
+        updateAnalogThumb(touch.clientX, touch.clientY);
+        fireBullet();
     }
 });
-
-function fireBullet(clickX, clickY) {
-    // Calculate direction vector
-    const magnitude = Math.sqrt(clickX * clickX + clickY * clickY);
-    if (magnitude === 0) return; // Avoid division by zero
-    const normalizedX = clickX / magnitude;
-    const normalizedY = clickY / magnitude;
-    const bulletSpeed = 10;
-    playerBullets.push({
-        x: soldier.x + soldier.width,
-        y: soldier.y + soldier.height / 2,
-        width: 5,
-        height: 2.5,
-        speedX: normalizedX * bulletSpeed,
-        speedY: normalizedY * bulletSpeed,
-        distanceTraveled: 0
-    });
-}
+document.addEventListener('touchmove', (e) => {
+    if (isShooting && gameStarted && !gameOver) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        updateAnalogThumb(touch.clientX, touch.clientY);
+    }
+});
+document.addEventListener('touchend', () => {
+    isShooting = false;
+    shootDirection = { x: 0, y: 0 };
+    analogThumb.style.transform = 'translate(0, 0)';
+});
+document.addEventListener('touchcancel', () => {
+    isShooting = false;
+    shootDirection = { x: 0, y: 0 };
+    analogThumb.style.transform = 'translate(0, 0)';
+});
 
 // Spawn enemy soldiers
 function spawnEnemies() {
@@ -309,7 +358,7 @@ function gameLoop() {
         return;
     }
 
-    // Update soldier movement (allow movement in air)
+    // Update soldier movement
     if (isMovingLeft) {
         soldier.x -= soldier.speed;
         if (soldier.x < 0) soldier.x = 0;
@@ -321,7 +370,7 @@ function gameLoop() {
         }
     }
 
-    // Update camera position (center player when moving)
+    // Update camera position
     const desiredCameraX = soldier.x - canvasWidth / 2 + soldier.width / 2;
     cameraX = Math.max(0, Math.min(desiredCameraX, cameraMaxX));
 
@@ -333,6 +382,11 @@ function gameLoop() {
         soldier.y = ground.y - soldier.height;
         soldier.velocityY = 0;
         soldier.isJumping = false;
+    }
+
+    // Continuous shooting during drag
+    if (isShooting) {
+        fireBullet();
     }
 
     // Spawn and shoot enemies
@@ -365,7 +419,7 @@ function gameLoop() {
     backgroundCtx.clearRect(0, 0, canvasWidth, backgroundCanvas.height);
     ctx.clearRect(0, 0, canvasWidth, gameCanvas.height);
 
-    // Draw background (blurred via CSS)
+    // Draw background
     backgroundCtx.save();
     backgroundCtx.translate(-cameraX, 0);
     if (backgroundImage.complete) {
@@ -373,7 +427,7 @@ function gameLoop() {
     }
     backgroundCtx.restore();
 
-    // Draw game elements on gameCanvas
+    // Draw game elements
     ctx.save();
     ctx.translate(-cameraX, 0);
 
@@ -411,7 +465,7 @@ function gameLoop() {
 
     ctx.restore();
 
-    // Draw hit counters (in screen space)
+    // Draw hit counters
     ctx.fillStyle = 'black';
     ctx.font = '16px Arial';
     ctx.fillText(`Player Hits: ${soldier.hits}/${soldier.maxHits}`, 10, 20);
